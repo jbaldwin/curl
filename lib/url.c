@@ -4000,7 +4000,9 @@ CURLcode Curl_setup_conn(struct Curl_easy *data,
      is used strictly to provide extra information to a parent function in the
      case of proxy CONNECT failures and we must make sure we don't have it
      lingering set from a previous invoke */
+  CONNCACHE_LOCK(data);
   conn->bits.proxy_connect_closed = FALSE;
+  CONNCACHE_UNLOCK(data);
 #endif
 
 #ifdef CURL_DO_LINEEND_CONV
@@ -4096,8 +4098,10 @@ CURLcode Curl_init_do(struct Curl_easy *data, struct connectdata *conn)
     return result;
 
   if(conn) {
+    CONNCACHE_LOCK(data);
     conn->bits.do_more = FALSE; /* by default there's no curl_do_more() to
                                    use */
+    CONNCACHE_UNLOCK(data);
     /* if the protocol used doesn't support wildcards, switch it off */
     if(data->state.wildcardmatch &&
        !(conn->handler->flags & PROTOPT_WILDCARD))

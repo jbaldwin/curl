@@ -489,7 +489,9 @@ enum resolve_t Curl_resolv(struct Curl_easy *data,
   struct connectdata *conn = data->conn;
 
   *entry = NULL;
+  CONNCACHE_LOCK(data);
   conn->bits.doh = FALSE; /* default is not */
+  CONNCACHE_UNLOCK(data);
 
   if(data->share)
     Curl_share_lock(data, CURL_LOCK_DATA_DNS, CURL_LOCK_ACCESS_SINGLE);

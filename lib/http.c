@@ -4226,7 +4226,9 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
               infof(data, "Lying server, not serving HTTP/2\n");
           }
           if(conn->httpversion < 20) {
+            CONNCACHE_LOCK(data);
             conn->bundle->multiuse = BUNDLE_NO_MULTIUSE;
+            CONNCACHE_UNLOCK(data);
             infof(data, "Mark bundle as not supporting multiuse\n");
           }
         }
