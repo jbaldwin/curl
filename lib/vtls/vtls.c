@@ -410,6 +410,8 @@ bool Curl_ssl_getsessionid(struct Curl_easy *data,
   else
     general_age = &data->state.sessionage;
 
+  /* Need to lock around conn->bits */
+  CONNCACHE_LOCK(data);
   for(i = 0; i < data->set.general_ssl.max_ssl_sessions; i++) {
     check = &data->state.session[i];
     if(!check->sessionid)
@@ -436,6 +438,7 @@ bool Curl_ssl_getsessionid(struct Curl_easy *data,
     }
   }
 
+  CONNCACHE_UNLOCK(data);
   return no_match;
 }
 
