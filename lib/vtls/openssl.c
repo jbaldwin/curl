@@ -442,12 +442,13 @@ static CURLcode ossl_seed(struct Curl_easy *data)
   static bool ssl_seeded = FALSE;
   char fname[256];
 
-  if(ssl_seeded)
+  /* Only let 1 thread seed ever */
+  /* TODO: make this work on other platforms */
+  if(__sync_bool_compare_and_swap(&ssl_seeded, FALSE, TRUE) == FALSE)
     return CURLE_OK;
 
   if(rand_enough()) {
     /* OpenSSL 1.1.0+ will return here */
-    ssl_seeded = TRUE;
     return CURLE_OK;
   }
 
