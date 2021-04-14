@@ -59,6 +59,8 @@
 #include "multiif.h"
 #include "strerror.h"
 #include "curl_printf.h"
+#include "conncache.h"
+#include "share.h"
 
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -2491,6 +2493,7 @@ static int ossl_new_session_cb(SSL *ssl, SSL_SESSION *ssl_sessionid)
     void *old_ssl_sessionid = NULL;
 
     Curl_ssl_sessionid_lock(data);
+    CONNCACHE_LOCK(data);
     if(isproxy)
       incache = FALSE;
     else
@@ -2513,6 +2516,7 @@ static int ossl_new_session_cb(SSL *ssl, SSL_SESSION *ssl_sessionid)
       else
         failf(data, "failed to store ssl session");
     }
+    CONNCACHE_UNLOCK(data);
     Curl_ssl_sessionid_unlock(data);
   }
 
@@ -3235,10 +3239,12 @@ static CURLcode ossl_connect_step1(struct Curl_easy *data,
     }
 
     Curl_ssl_sessionid_lock(data);
+    CONNCACHE_LOCK(data);
     if(!Curl_ssl_getsessionid(data, conn, SSL_IS_PROXY() ? TRUE : FALSE,
                               &ssl_sessionid, NULL, sockindex)) {
       /* we got a session id, use it! */
       if(!SSL_set_session(backend->handle, ssl_sessionid)) {
+        CONNCACHE_UNLOCK(data);
         Curl_ssl_sessionid_unlock(data);
         failf(data, "SSL: SSL_set_session failed: %s",
               ossl_strerror(ERR_get_error(), error_buffer,
@@ -3248,6 +3254,7 @@ static CURLcode ossl_connect_step1(struct Curl_easy *data,
       /* Informational message */
       infof(data, "SSL re-using session ID\n");
     }
+    CONNCACHE_UNLOCK(data);
     Curl_ssl_sessionid_unlock(data);
   }
 
