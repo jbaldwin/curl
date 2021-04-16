@@ -444,13 +444,21 @@ static CURLcode ossl_seed(struct Curl_easy *data)
   static bool ssl_seeded = FALSE;
   char fname[256];
 
-  /* Only let 1 thread seed ever */
-  /* TODO: make this work on other platforms */
-  if(__sync_bool_compare_and_swap(&ssl_seeded, FALSE, TRUE) == FALSE)
+  /* Avoid lock if already seeded */
+  if(ssl_seeded == TRUE)
     return CURLE_OK;
+
+  Curl_ssl_sessionid_lock(data);
+  /* Its possible another thread beat us to it, bail out if so */
+  if(ssl_seeded == TRUE) {
+    Curl_ssl_sessionid_unlock(data);
+    return CURLE_OK;
+  }
 
   if(rand_enough()) {
     /* OpenSSL 1.1.0+ will return here */
+    ssl_seeded = TRUE;
+    Curl_ssl_sessionid_unlock(data);
     return CURLE_OK;
   }
 
@@ -466,8 +474,10 @@ static CURLcode ossl_seed(struct Curl_easy *data)
                     data->set.str[STRING_SSL_RANDOM_FILE]:
                     RANDOM_FILE),
                    RAND_LOAD_LENGTH);
-    if(rand_enough())
+    if(rand_enough()) {
+      Curl_ssl_sessionid_unlock(data);
       return CURLE_OK;
+    }
   }
 
 #if defined(HAVE_RAND_EGD)
@@ -485,8 +495,10 @@ static CURLcode ossl_seed(struct Curl_easy *data)
     int ret = RAND_egd(data->set.str[STRING_SSL_EGDSOCKET]?
                        data->set.str[STRING_SSL_EGDSOCKET]:EGD_SOCKET);
     if(-1 != ret) {
-      if(rand_enough())
+      if(rand_enough()) {
+        Curl_ssl_sessionid_unlock(data);
         return CURLE_OK;
+      }
     }
   }
 #endif
@@ -519,11 +531,14 @@ static CURLcode ossl_seed(struct Curl_easy *data)
   if(fname[0]) {
     /* we got a file name to try */
     RAND_load_file(fname, RAND_LOAD_LENGTH);
-    if(rand_enough())
+    if(rand_enough()) {
+      Curl_ssl_sessionid_unlock(data);
       return CURLE_OK;
+    }
   }
 
   infof(data, "libcurl is now using a weak random seed!\n");
+  Curl_ssl_sessionid_unlock(data);
   return (rand_enough() ? CURLE_OK :
     CURLE_SSL_CONNECT_ERROR /* confusing error code */);
 }
